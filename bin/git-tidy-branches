@@ -1,0 +1,352 @@
+#!/usr/bin/env bash
+#
+# git-tidy-branches — find (and optionally delete) local branches whose work has
+# already landed on the base branch, including via GitHub's squash-merge.
+#
+# Invoked as `git tidy-branches` because git resolves `git-<name>` on PATH as a
+# subcommand.  Dry-run is the default; deleting requires --delete.
+#
+# Branches are sorted into two buckets by the strength of the evidence.
+#
+# CONFIRMED — the branch content is provably on the base.  --delete removes these.
+#   ancestor  the branch tip is reachable from the base: an ordinary
+#             fast-forward or merge-commit landing.
+#   squashed  a squash-merge landed it.  We synthesize the commit the squash
+#             would have produced -- diff(merge-base -> branch tree) as a single
+#             commit -- and ask `git cherry` whether the base already contains an
+#             equivalent patch-id.  Conservative by construction: if the PR
+#             picked up review fixes before merging, the patch-id differs and the
+#             branch drops to LIKELY or is kept.
+#   empty     the branch tree is identical to the merge-base tree, so it carries
+#             no net change at all.
+#
+# LIKELY — the branch *name* landed, but this local copy's content differs from
+# what merged, so it is usually a stale pre-rebase stack.  Not deleted unless
+# --include-likely is given.
+#   pr#N      a merged GitHub PR has this branch as its head.  One bulk `gh pr
+#             list` call, matched locally.  Catches branches rebased or amended
+#             during review, which the tree comparison cannot see.
+#   gone      the upstream tracking branch was deleted on the remote (visible
+#             after `fetch --prune`) — how GitHub's delete-branch-on-merge shows
+#             up locally.  On its own this means abandoned, not necessarily
+#             landed.
+#
+# Never touched: the current branch, the base ref, any branch checked out in
+# another worktree, and the protect list (default main/master, extend with
+# --protect).
+#
+# Known limits:
+#   - A branch amended during review with no merged PR under that head name
+#     (e.g. a hand-made pre-rebase backup) is not detected at all.  Deliberate.
+#   - Deleting a remote branch is out of scope; this only cleans up local refs.
+#   - Deletion prints each branch's SHA so it can be recreated with
+#     `git branch <name> <sha>`.  That restores the ref but not the branch's
+#     upstream config -- which pointed at an already-deleted remote branch
+#     anyway.  `git reflog` is the fallback if the SHA list is lost.
+#
+set -euo pipefail
+
+PROG=$(basename "$0")
+
+BASE=""
+DO_FETCH=1
+DO_DELETE=0
+INCLUDE_LIKELY=0
+USE_GH=auto
+SHOW_ALL=0
+PROTECT=(main master)
+
+usage() {
+    cat <<'USAGE'
+usage: git tidy-branches [options]
+
+Report local branches whose work already landed on the base branch, including
+squash-merges.  Prints a dry-run report unless --delete is given.
+
+Findings are split into CONFIRMED (content provably on the base) and LIKELY
+(the branch name landed, but this local copy differs from what merged).
+
+Options:
+  --base <ref>       base branch to compare against (default: first of
+                     origin/main, origin/master, main, master that exists)
+  --delete           delete the CONFIRMED branches (uses `git branch -D`, since
+                     -d refuses squash-merged branches by design)
+  --include-likely   also delete the LIKELY branches; look at them first
+  --no-fetch         skip the `git fetch --prune` refresh of the base remote
+  --no-gh            skip the GitHub merged-PR cross-check
+  --gh               require the GitHub cross-check; fail if `gh` is unusable
+  --protect <glob>   never consider branches matching this glob (repeatable;
+                     adds to the default main/master)
+  --all              also list the branches that were kept, and why
+  -h                 show this help (git turns --help into a man lookup)
+
+Examples:
+  git tidy-branches                           # report what could go
+  git tidy-branches --all                     # report kept branches too
+  git tidy-branches --delete                  # remove the confirmed ones
+  git tidy-branches --delete --include-likely # remove the stale stacks too
+  git tidy-branches --base upstream/develop --protect 'release/*'
+USAGE
+}
+
+die()  { printf '%s: %s\n' "$PROG" "$*" >&2; exit 1; }
+warn() { printf '%s: %s\n' "$PROG" "$*" >&2; }
+
+while [ $# -gt 0 ]; do
+    case $1 in
+        --base)     [ $# -ge 2 ] || die "--base needs a ref";  BASE=$2; shift 2 ;;
+        --protect)  [ $# -ge 2 ] || die "--protect needs a glob"; PROTECT+=("$2"); shift 2 ;;
+        --delete)   DO_DELETE=1; shift ;;
+        --include-likely) INCLUDE_LIKELY=1; shift ;;
+        --no-fetch) DO_FETCH=0; shift ;;
+        --no-gh)    USE_GH=no;  shift ;;
+        --gh)       USE_GH=yes; shift ;;
+        --all)      SHOW_ALL=1; shift ;;
+        -h|--help)  usage; exit 0 ;;
+        *)          die "unknown option '$1' (try --help)" ;;
+    esac
+done
+
+git rev-parse --git-dir >/dev/null 2>&1 || die "not inside a git repository"
+
+if [ -t 1 ]; then
+    C_RESET=$'\033[0m'; C_DIM=$'\033[2m'; C_BOLD=$'\033[1m'
+    C_RED=$'\033[31m'; C_GREEN=$'\033[32m'; C_YELLOW=$'\033[33m'
+else
+    C_RESET=; C_DIM=; C_BOLD=; C_RED=; C_GREEN=; C_YELLOW=
+fi
+
+# --- resolve the base ref -----------------------------------------------------
+if [ -z "$BASE" ]; then
+    for cand in origin/main origin/master main master; do
+        if git rev-parse --verify -q "$cand^{commit}" >/dev/null; then BASE=$cand; break; fi
+    done
+    [ -n "$BASE" ] || die "could not guess a base branch; pass --base <ref>"
+fi
+git rev-parse --verify -q "$BASE^{commit}" >/dev/null \
+    || die "base ref '$BASE' does not exist"
+
+# --- refresh ------------------------------------------------------------------
+if [ "$DO_FETCH" = 1 ] && [[ $BASE == */* ]]; then
+    remote=${BASE%%/*}
+    if git remote | grep -qx -- "$remote"; then
+        printf '%sfetching %s --prune...%s\n' "$C_DIM" "$remote" "$C_RESET"
+        git fetch --prune --quiet "$remote" \
+            || warn "fetch failed; continuing against possibly stale refs"
+    fi
+fi
+
+BASE_SHA=$(git rev-parse --short "$BASE")
+CURRENT=$(git symbolic-ref --quiet --short HEAD || true)
+
+# --- branches held by a worktree ----------------------------------------------
+declare -A WT_OF=()
+wt=""
+while IFS= read -r line; do
+    case $line in
+        "worktree "*)          wt=${line#worktree } ;;
+        "branch refs/heads/"*) WT_OF[${line#branch refs/heads/}]=$wt ;;
+    esac
+done < <(git worktree list --porcelain)
+
+# --- merged GitHub PRs, keyed by head branch ----------------------------------
+declare -A GH_PR=()
+GH_STATE=off
+load_gh() {
+    [ "$GH_STATE" = off ] || return 0
+    GH_STATE=failed
+    if ! command -v gh >/dev/null 2>&1; then
+        [ "$USE_GH" = yes ] && die "--gh given but the gh CLI is not installed"
+        return 0
+    fi
+    local out
+    if ! out=$(gh pr list --state merged --limit 1000 \
+                   --json number,headRefName \
+                   --jq '.[] | "\(.headRefName)\t\(.number)"' 2>&1); then
+        [ "$USE_GH" = yes ] && die "--gh given but the gh query failed: $out"
+        warn "gh merged-PR lookup failed, continuing without it (--no-gh to silence)"
+        return 0
+    fi
+    local head num
+    while IFS=$'\t' read -r head num; do
+        [ -n "$head" ] && GH_PR[$head]=$num
+    done <<<"$out"
+    GH_STATE=ok
+}
+[ "$USE_GH" = no ] || load_gh
+
+# --- classify -----------------------------------------------------------------
+CONF_NAME=();   CONF_WHY=();   CONF_SHA=();   CONF_AHEAD=();   CONF_BEHIND=();   CONF_DATE=()
+LIKE_NAME=();   LIKE_WHY=();   LIKE_SHA=();   LIKE_AHEAD=();   LIKE_BEHIND=();   LIKE_DATE=()
+KEPT_NAME=();   KEPT_WHY=()
+
+base_short=${BASE##*/}
+
+while IFS=$'\t' read -r name sha date track; do
+    [ -n "$name" ] || continue
+
+    if [ "$name" = "$CURRENT" ]; then
+        KEPT_NAME+=("$name"); KEPT_WHY+=("current branch"); continue
+    fi
+    if [ "$name" = "$BASE" ] || [ "$name" = "$base_short" ]; then
+        KEPT_NAME+=("$name"); KEPT_WHY+=("is the base branch"); continue
+    fi
+    protected=""
+    for pat in ${PROTECT[@]+"${PROTECT[@]}"}; do
+        # shellcheck disable=SC2053  # glob match is intentional
+        if [[ $name == $pat ]]; then protected=$pat; break; fi
+    done
+    if [ -n "$protected" ]; then
+        KEPT_NAME+=("$name"); KEPT_WHY+=("protected by '$protected'"); continue
+    fi
+    if [ -n "${WT_OF[$name]:-}" ]; then
+        KEPT_NAME+=("$name"); KEPT_WHY+=("checked out in ${WT_OF[$name]}"); continue
+    fi
+
+    mb=$(git merge-base "$BASE" "$name" 2>/dev/null || true)
+    if [ -z "$mb" ]; then
+        KEPT_NAME+=("$name"); KEPT_WHY+=("no common history with $BASE"); continue
+    fi
+
+    counts=$(git rev-list --left-right --count "$BASE...$name")
+    behind=${counts%%$'\t'*}
+    ahead=${counts##*$'\t'}
+
+    strong=""
+    if git merge-base --is-ancestor "$name" "$BASE"; then
+        strong=ancestor
+    elif git diff --quiet "$mb" "$name"; then
+        strong=empty
+    else
+        # Synthesize the squash commit and ask whether its patch is already
+        # upstream.  The commit-tree object is dangling and gets gc'd.
+        fake=$(git commit-tree "$name^{tree}" -p "$mb" -m "tidy-branches probe")
+        if [ "$(git cherry "$BASE" "$fake" | cut -c1)" = "-" ]; then
+            strong=squashed
+        fi
+    fi
+
+    weak=()
+    [ -n "${GH_PR[$name]:-}" ] && weak+=("pr#${GH_PR[$name]}")
+    [ "$track" = "gone" ] && weak+=("gone")
+
+    all=()
+    [ -n "$strong" ] && all+=("$strong")
+    all+=(${weak[@]+"${weak[@]}"})
+    old=$IFS; IFS=,; joined="${all[*]}"; IFS=$old
+
+    if [ -n "$strong" ]; then
+        CONF_NAME+=("$name");  CONF_WHY+=("$joined"); CONF_SHA+=("$sha")
+        CONF_AHEAD+=("$ahead"); CONF_BEHIND+=("$behind"); CONF_DATE+=("$date")
+    elif [ ${#weak[@]} -gt 0 ]; then
+        LIKE_NAME+=("$name");  LIKE_WHY+=("$joined"); LIKE_SHA+=("$sha")
+        LIKE_AHEAD+=("$ahead"); LIKE_BEHIND+=("$behind"); LIKE_DATE+=("$date")
+    else
+        KEPT_NAME+=("$name"); KEPT_WHY+=("no evidence it landed (+$ahead/-$behind)")
+    fi
+done < <(git for-each-ref --sort=committerdate \
+             --format='%(refname:short)%09%(objectname:short)%09%(committerdate:short)%09%(upstream:track,nobracket)' \
+             refs/heads/)
+
+# --- report -------------------------------------------------------------------
+print_group() { # $1 title, $2 colour, then name/why/ahead/behind/date/sha arrays by nameref
+    local -n _n=$2 _w=$3 _a=$4 _b=$5 _d=$6 _s=$7
+    local title=$1 width=0 i
+    for i in "${_n[@]}"; do [ ${#i} -gt $width ] && width=${#i}; done
+    printf '%s%s (%d):%s\n' "$C_BOLD" "$title" "${#_n[@]}" "$C_RESET"
+    printf '  %s%-*s  %-22s %6s %6s  %-10s %s%s\n' \
+        "$C_DIM" "$width" "BRANCH" "EVIDENCE" "AHEAD" "BEHIND" "LAST" "SHA" "$C_RESET"
+    for i in "${!_n[@]}"; do
+        printf '  %-*s  %-22s %6s %6s  %-10s %s\n' \
+            "$width" "${_n[$i]}" "${_w[$i]}" "${_a[$i]}" "${_b[$i]}" "${_d[$i]}" "${_s[$i]}"
+    done
+}
+
+gh_note=""
+case $GH_STATE in
+    ok)     gh_note=" ${C_DIM}(+ ${#GH_PR[@]} merged PRs from gh)${C_RESET}" ;;
+    failed) gh_note=" ${C_DIM}(gh cross-check unavailable)${C_RESET}" ;;
+esac
+printf '\n%sBase:%s %s (%s)%s\n\n' "$C_BOLD" "$C_RESET" "$BASE" "$BASE_SHA" "$gh_note"
+
+if [ ${#CONF_NAME[@]} -eq 0 ] && [ ${#LIKE_NAME[@]} -eq 0 ]; then
+    printf '%sNothing to tidy — no local branch has already landed on %s.%s\n' \
+        "$C_GREEN" "$BASE" "$C_RESET"
+fi
+
+if [ ${#CONF_NAME[@]} -gt 0 ]; then
+    print_group "Confirmed landed — content is provably on $BASE" \
+        CONF_NAME CONF_WHY CONF_AHEAD CONF_BEHIND CONF_DATE CONF_SHA
+fi
+
+if [ ${#LIKE_NAME[@]} -gt 0 ]; then
+    [ ${#CONF_NAME[@]} -gt 0 ] && echo
+    print_group "Likely obsolete — the name landed, but this local copy differs" \
+        LIKE_NAME LIKE_WHY LIKE_AHEAD LIKE_BEHIND LIKE_DATE LIKE_SHA
+    printf '  %susually a stale pre-rebase stack; look before deleting:%s\n' "$C_DIM" "$C_RESET"
+    printf '  %s  git log --oneline %s..%s%s\n' "$C_DIM" "$BASE" "${LIKE_NAME[0]}" "$C_RESET"
+fi
+
+if [ "$SHOW_ALL" = 1 ] && [ ${#KEPT_NAME[@]} -gt 0 ]; then
+    width=0
+    for n in "${KEPT_NAME[@]}"; do [ ${#n} -gt $width ] && width=${#n}; done
+    printf '\n%sKept (%d):%s\n' "$C_BOLD" "${#KEPT_NAME[@]}" "$C_RESET"
+    for i in "${!KEPT_NAME[@]}"; do
+        printf '  %-*s  %s%s%s\n' "$width" "${KEPT_NAME[$i]}" \
+            "$C_DIM" "${KEPT_WHY[$i]}" "$C_RESET"
+    done
+fi
+
+# --- delete -------------------------------------------------------------------
+DEL_NAME=(); DEL_SHA=()
+if [ ${#CONF_NAME[@]} -gt 0 ]; then
+    DEL_NAME+=("${CONF_NAME[@]}"); DEL_SHA+=("${CONF_SHA[@]}")
+fi
+if [ "$INCLUDE_LIKELY" = 1 ] && [ ${#LIKE_NAME[@]} -gt 0 ]; then
+    DEL_NAME+=("${LIKE_NAME[@]}"); DEL_SHA+=("${LIKE_SHA[@]}")
+fi
+
+if [ "$DO_DELETE" != 1 ]; then
+    if [ ${#CONF_NAME[@]} -gt 0 ] || [ ${#LIKE_NAME[@]} -gt 0 ]; then
+        printf '\n%sDry run — nothing deleted.%s\n' "$C_YELLOW" "$C_RESET"
+        [ ${#CONF_NAME[@]} -gt 0 ] && \
+            printf '  git tidy-branches --delete                    remove the %d confirmed\n' "${#CONF_NAME[@]}"
+        [ ${#LIKE_NAME[@]} -gt 0 ] && \
+            printf '  git tidy-branches --delete --include-likely   remove all %d\n' \
+                   "$(( ${#CONF_NAME[@]} + ${#LIKE_NAME[@]} ))"
+    fi
+    echo
+    exit 0
+fi
+
+if [ ${#DEL_NAME[@]} -eq 0 ]; then
+    printf '\n%sNothing confirmed to delete.%s' "$C_YELLOW" "$C_RESET"
+    [ ${#LIKE_NAME[@]} -gt 0 ] && printf '  Add --include-likely for the %d likely one(s).' "${#LIKE_NAME[@]}"
+    printf '\n\n'
+    exit 0
+fi
+
+echo
+failed=0
+for i in "${!DEL_NAME[@]}"; do
+    if git branch -D "${DEL_NAME[$i]}" >/dev/null 2>&1; then
+        printf '  %sdeleted%s %s\n' "$C_RED" "$C_RESET" "${DEL_NAME[$i]}"
+    else
+        printf '  %sFAILED  %s%s (still present)\n' "$C_RED" "${DEL_NAME[$i]}" "$C_RESET"
+        failed=$((failed + 1))
+    fi
+done
+
+if [ "$INCLUDE_LIKELY" != 1 ] && [ ${#LIKE_NAME[@]} -gt 0 ]; then
+    printf '\n%sKept %d likely-obsolete branch(es) — add --include-likely to remove them.%s\n' \
+        "$C_YELLOW" "${#LIKE_NAME[@]}" "$C_RESET"
+fi
+
+printf '\n%sTo restore any of them%s %s(the ref comes back; the already-dead upstream config does not)%s\n' \
+    "$C_BOLD" "$C_RESET" "$C_DIM" "$C_RESET"
+for i in "${!DEL_NAME[@]}"; do
+    printf '  git branch %s %s\n' "${DEL_NAME[$i]}" "${DEL_SHA[$i]}"
+done
+echo
+
+[ "$failed" -eq 0 ] || exit 1

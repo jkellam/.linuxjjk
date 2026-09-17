@@ -1,0 +1,187 @@
+##----------------------------------------------------------------------------
+## bashrc_jjk
+##
+## My .bashrc additions
+##
+## Make sure to have .bashrc source this file
+##
+##----------------------------------------------------------------------------
+
+
+##----------------------------------------------------------------------------
+## Set SCRIPT_DIR to point to the actual directory this file lives in
+##----------------------------------------------------------------------------
+SCRIPT_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+
+
+##----------------------------------------------------------------------------
+## Load marker, used by "init" to prove the hook into .bashrc actually fires.
+##
+## Deliberately NOT exported: every new shell starts back at zero, so a count
+## above one means this file got sourced twice in ONE shell -- i.e. two hooks
+## are installed -- rather than just inheriting a count from a parent shell.
+##----------------------------------------------------------------------------
+LINUXJJK_LOADED=$(( ${LINUXJJK_LOADED:-0} + 1 ))
+LINUXJJK_DIR="$SCRIPT_DIR"
+
+
+##----------------------------------------------------------------------------
+##  Include aliases
+##----------------------------------------------------------------------------
+if [[ -f "${SCRIPT_DIR}/.aliases" ]]; then
+    source "${SCRIPT_DIR}/.aliases"
+fi
+
+
+##----------------------------------------------------------------------------
+#Slow the mouse pointer down when using my cheap spare mouse
+#See https://forums.linuxmint.com/viewtopic.php?t=253474
+##----------------------------------------------------------------------------
+#xinput set-prop 'PixArt Lenovo USB Optical Mouse' 181 1 0 0 0 1 0 0 0 2 2> /dev/null
+
+
+##----------------------------------------------------------------------------
+## Slickedit
+##    VSLICKXNOPLUSNEWMSG suppresses a message when starting a second instance
+##----------------------------------------------------------------------------
+export VSLICKXNOPLUSNEWMSG=1
+
+
+##----------------------------------------------------------------------------
+## Colors
+##----------------------------------------------------------------------------
+export COLOR_NC='\e[0m' # No Color
+export COLOR_WHITE='\e[1;37m'
+export COLOR_BLACK='\e[0;30m'
+export COLOR_BLUE='\e[0;34m'
+export COLOR_LIGHT_BLUE='\e[1;34m'
+export COLOR_GREEN='\e[0;32m'
+export COLOR_LIGHT_GREEN='\e[1;32m'
+export COLOR_CYAN='\e[0;36m'
+export COLOR_LIGHT_CYAN='\e[1;36m'
+export COLOR_RED='\e[0;31m'
+export COLOR_LIGHT_RED='\e[1;31m'
+export COLOR_PURPLE='\e[0;35m'
+export COLOR_LIGHT_PURPLE='\e[1;35m'
+export COLOR_BROWN='\e[0;33m'
+export COLOR_YELLOW='\e[1;33m'
+export COLOR_GRAY='\e[1;30m'
+export COLOR_LIGHT_GRAY='\e[0;37m'
+
+
+##----------------------------------------------------------------------------
+## Claude uses this to determine its editor, and I want the mouse to go to the
+## shell, not to Claude
+##----------------------------------------------------------------------------
+export EDITOR=nano
+export CLAUDE_CODE_DISABLE_MOUSE_CLICKS=1
+
+
+##----------------------------------------------------------------------------
+## Setup the prompt
+##----------------------------------------------------------------------------
+PS1="\[${COLOR_LIGHT_PURPLE}\]\$(printf \%\$(expr \$(dirs -p | wc -l) - 1)s | tr \" \" \"+\" )\\w\[${COLOR_LIGHT_GREEN}\]\$(gitbranch)\[${COLOR_YELLOW}\]$(hgbookmark)\[${COLOR_LIGHT_PURPLE}\]>\[${COLOR_NC}\]"
+
+
+##----------------------------------------------------------------------------
+## Make shell completion keys useful
+##      Use sudo showkey --ascii to lookup key codes
+##      remembering \e means escape
+##----------------------------------------------------------------------------
+[[ $- == *i* ]] && bind TAB:menu-complete
+[[ $- == *i* ]] && bind '"\e[Z": menu-complete-backward'
+[[ $- == *i* ]] && bind '"\e[A": history-search-backward'
+[[ $- == *i* ]] && bind '"\e[B": history-search-forward'
+
+
+##----------------------------------------------------------------------------
+## Get my local bin directory and my personal bin directory on the path.
+##
+## Guarded, because PATH is exported: without the guard, re-sourcing this file
+## (a nested shell, or a machine that ended up with two hooks) keeps stacking
+## duplicate entries onto PATH.  Listed lowest-priority first, since each one
+## is prepended.
+##----------------------------------------------------------------------------
+for _dir in "$HOME/.local/bin" "$SCRIPT_DIR/bin"; do
+    case ":$PATH:" in
+        *":$_dir:"*) ;;
+        *) PATH="$_dir:$PATH" ;;
+    esac
+done
+unset _dir
+export PATH
+
+
+##----------------------------------------------------------------------------
+##  Per-machine setup lives in ~/.bashrc_local, not in this file.
+##
+##  This file travels to every machine, so anything specific to a given box
+##  goes in ~/.bashrc_local as customization.
+##----------------------------------------------------------------------------
+if [[ -f "$HOME/.bashrc_local" ]]; then
+    source "$HOME/.bashrc_local"
+else
+    echo -e "${COLOR_YELLOW}NOTE: No ~/.bashrc_local. Create one if you want to customize bashrc for this machine${COLOR_NC}"
+fi
+
+
+##----------------------------------------------------------------------------
+##  The old hardcoded per-machine block, kept commented out until banshee,
+##  jeffklinux and nyus each have their own ~/.bashrc_local.  Copies of what
+##  each one needs are in ~/tmp/.bashrc_local_for_<machine>.
+##----------------------------------------------------------------------------
+# ##----------------------------------------------------------------------------
+# ##  From here down is per-machine unique items.
+# ##  NOTE: IF YOU NEED SOMETHING FROM HERE AND CHANGE MACHINES, YOU'LL NEED TO
+# ##        ADD A SECTION
+# ##----------------------------------------------------------------------------
+# if [[ "$(uname -n)" == "banshee" ]]; then
+#     ##------------------------------------------------------------------------
+#     ## Items specific to my Home machine.
+#     ##
+#     ## Setting UMASK like this makes the default permissions be group-writable
+#     ## which solves an asston of issues on the NFS mount to Unraid
+#     ##------------------------------------------------------------------------
+#     umask 002
+#
+# elif [[ "$(uname -n)" == "jeffklinux" ]]; then
+#     ##------------------------------------------------------------------------
+#     ## Items specific to my Work machine.
+#     ##
+#     ## Get environment variables for building various Sesame artifacts up
+#     ## and loaded
+#     ##------------------------------------------------------------------------
+#     export ADK_DIR="$HOME/qtil/adk"
+#     export LMX_LICENSE_PATH="6200@localhost"
+#     . "${HOME}/ZView5.24.1/zview-setenv-5.24.1.sh"
+#
+# elif [[ "$(uname -n)" == "nyus" ]]; then
+#     ##------------------------------------------------------------------------
+#     ##  Shared sesame account on nyus. Set up the zview stuff as well as tio.
+#     ##------------------------------------------------------------------------
+#     . "${HOME}/ZView5.24.1/zview-setenv-5.24.1.sh"
+#
+#     TIO_DIR="$HOME/.local/opt/tio"
+#
+#     _dir="$TIO_DIR/usr/bin"
+#     case ":$PATH:" in
+#         *":$_dir:"*) ;;
+#         *) PATH="$_dir:$PATH" ;;
+#     esac
+#     export PATH
+#
+#     _dir="$TIO_DIR/usr/lib/x86_64-linux-gnu"
+#     case ":$LD_LIBRARY_PATH:" in
+#         *":$_dir:"*) ;;
+#         *) LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$_dir" ;;
+#     esac
+#     export LD_LIBRARY_PATH
+#
+#     unset _dir
+#
+# else
+#     ##------------------------------------------------------------------------
+#     ## Unknown machine -- nag until a section above is added for it
+#     ##------------------------------------------------------------------------
+#     echo -e "${COLOR_YELLOW}Warning: ${BASH_SOURCE[0]} has not yet been customized for your machine.${COLOR_NC}"
+# fi

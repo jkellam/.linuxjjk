@@ -1,0 +1,426 @@
+// Place your key bindings in this file to override the defaultsauto[]
+[
+    {
+        "key": "alt+x",
+        "command": "brief4vscode.save_and_exit",
+        "when": "brief4vscode_enabled && editorTextFocus"
+    },
+    {
+        "key": "ctrl+x",
+        "command": "-brief4vscode.save_and_exit",
+        "when": "brief4vscode_enabled && editorTextFocus"
+    },
+    {
+        "key": "ctrl+g",
+        "command": "workbench.action.gotoSymbol",
+        "when": "!accessibilityHelpIsShown && !accessibleViewIsShown"
+    },
+    {
+        "key": "ctrl+shift+o",
+        "command": "-workbench.action.gotoSymbol",
+        "when": "!accessibilityHelpIsShown && !accessibleViewIsShown"
+    },
+
+    // ===================================================================
+    // Below: added from SlickEditOptions24b.zip export.xml /
+    // eventtab_profiles.cfg.xml, profile "eventtab_profiles.emulation-Brief"
+    // (your customizations layered on SlickEdit's Brief emulation).
+    // ===================================================================
+
+    // SlickEdit 'C-C' -> copy-to-clipboard.
+    // brief4vscode's stock ctrl+c is "center_line_in_window" (real DOS
+    // Brief behavior), which is NOT what your SlickEdit config does.
+    // Removing the extension's binding lets ctrl+c fall back to VS Code's
+    // default Copy, matching your SlickEdit setup.
+    {
+        "key": "ctrl+c",
+        "command": "-brief4vscode.center_line_in_window",
+        "when": "editorTextFocus && brief4vscode_enabled"
+    },
+
+    // SlickEdit 'C-S-F9' -> debug-clear-all-breakpoints
+    {
+        "key": "ctrl+shift+f9",
+        "command": "workbench.debug.viewlet.action.removeAllBreakpoints"
+    },
+
+    // SlickEdit 'C-S-C' -> view-specialchars-toggle (closest built-in: render whitespace)
+    {
+        "key": "ctrl+shift+c",
+        "command": "editor.action.toggleRenderWhitespace"
+    },
+
+    // SlickEdit 'C-S-A' -> cap-selection.
+    // Approximate: SlickEdit cycles upper/lower/capitalized on repeat presses;
+    // VS Code has no cycling command, so this is bound to Title Case as the
+    // closest single-shot equivalent. Alternatives if you'd rather:
+    //   editor.action.transformToUppercase / editor.action.transformToLowercase
+    {
+        "key": "ctrl+shift+a",
+        "command": "editor.action.transformToTitlecase",
+        "when": "editorTextFocus && !editorReadonly"
+    },
+
+    // SlickEdit 'C-0'..'C-9' -> alt-bookmark (numbered bookmark set/jump).
+    // NOTE: this takes over VS Code's default ctrl+0..ctrl+9 "Focus Editor
+    // Group N" shortcuts. Left active because it's an explicit, deliberate
+    // binding in your SlickEdit config -- comment these out (and restore
+    // e.g. "workbench.action.focusFirstEditorGroup" etc.) if you'd rather
+    // keep editor-group focusing on those keys.
+    { "key": "ctrl+0", "command": "brief4vscode.drop_bookmark", "when": "editorTextFocus && brief4vscode_enabled", "args": "0" },
+    { "key": "ctrl+1", "command": "brief4vscode.drop_bookmark", "when": "editorTextFocus && brief4vscode_enabled", "args": "1" },
+    { "key": "ctrl+2", "command": "brief4vscode.drop_bookmark", "when": "editorTextFocus && brief4vscode_enabled", "args": "2" },
+    { "key": "ctrl+3", "command": "brief4vscode.drop_bookmark", "when": "editorTextFocus && brief4vscode_enabled", "args": "3" },
+    { "key": "ctrl+4", "command": "brief4vscode.drop_bookmark", "when": "editorTextFocus && brief4vscode_enabled", "args": "4" },
+    { "key": "ctrl+5", "command": "brief4vscode.drop_bookmark", "when": "editorTextFocus && brief4vscode_enabled", "args": "5" },
+    { "key": "ctrl+6", "command": "brief4vscode.drop_bookmark", "when": "editorTextFocus && brief4vscode_enabled", "args": "6" },
+    { "key": "ctrl+7", "command": "brief4vscode.drop_bookmark", "when": "editorTextFocus && brief4vscode_enabled", "args": "7" },
+    { "key": "ctrl+8", "command": "brief4vscode.drop_bookmark", "when": "editorTextFocus && brief4vscode_enabled", "args": "8" },
+    { "key": "ctrl+9", "command": "brief4vscode.drop_bookmark", "when": "editorTextFocus && brief4vscode_enabled", "args": "9" },
+
+    // SlickEdit 'C-S-0'..'C-S-9' -> alt-gtbookmark (jump to numbered bookmark).
+    // Imperfect: brief4vscode's jump_bookmark command has no per-number
+    // variant -- it opens a bookmark picker instead of jumping directly to
+    // bookmark N. All ten keys are wired to the same picker as the closest
+    // available behavior.
+    { "key": "ctrl+shift+0", "command": "brief4vscode.jump_bookmark", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+shift+1", "command": "brief4vscode.jump_bookmark", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+shift+2", "command": "brief4vscode.jump_bookmark", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+shift+3", "command": "brief4vscode.jump_bookmark", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+shift+4", "command": "brief4vscode.jump_bookmark", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+shift+5", "command": "brief4vscode.jump_bookmark", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+shift+6", "command": "brief4vscode.jump_bookmark", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+shift+7", "command": "brief4vscode.jump_bookmark", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+shift+8", "command": "brief4vscode.jump_bookmark", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+shift+9", "command": "brief4vscode.jump_bookmark", "when": "editorTextFocus && brief4vscode_enabled" },
+
+    // SlickEdit 'A-F' -> WriteFunctionBlock. Free key (brief4vscode doesn't
+    // use alt+f). Real port of your macro (source: OneDrive/SlickEdit/jjk.e.1)
+    // via the local helper extension -- finds the enclosing function through
+    // VS Code's document symbol provider and builds a boxed comment with
+    // name/description/parameters/return value. Parameter and return-type
+    // extraction is heuristic (parsed from DocumentSymbol.detail, which
+    // isn't standardized across languages) -- best-effort, not exact.
+    {
+        "key": "alt+f",
+        "command": "briefHelpers.writeFunctionBlock",
+        "when": "editorTextFocus && !editorReadonly"
+    },
+
+    // SlickEdit 'top_of_buffer' (Ctrl+Home) / 'bottom_of_buffer' (Ctrl+End)
+    // jump to the absolute start/end of the FILE (export.xml line 363).
+    // brief4vscode instead binds Ctrl+Home/End to its own top_of_window /
+    // end_of_window (top/bottom of the visible viewport, preserving column)
+    // -- a real behavioral mismatch once a file is longer than one screen.
+    // Swapped here: file start/end on Ctrl+Home/End (matching SlickEdit and
+    // VS Code's own native default), window top/bottom moved to
+    // Ctrl+PageUp/PageDown (which the extension otherwise leaves on plain
+    // file start/end, duplicating what Ctrl+Home/End now do).
+    { "key": "ctrl+home", "command": "cursorTop", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+end", "command": "cursorBottom", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+home", "command": "-brief4vscode.top_of_window", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+end", "command": "-brief4vscode.end_of_window", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+pageup", "command": "brief4vscode.top_of_window", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+pagedown", "command": "brief4vscode.end_of_window", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+pageup", "command": "-cursorTop", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+pagedown", "command": "-cursorBottom", "when": "editorTextFocus && brief4vscode_enabled" },
+
+    // SlickEdit 'Next word style' = Begin (export.xml line 345): Ctrl+Right
+    // ('next_word') lands on the START of the next word. brief4vscode binds
+    // Ctrl+Right to VS Code's native cursorWordEndRight, which lands on the
+    // END of the next word instead -- swapped to cursorWordStartRight (and
+    // the shift-select pairing) to match.
+    { "key": "ctrl+right", "command": "cursorWordStartRight", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+right", "command": "-cursorWordEndRight", "when": "editorTextFocus && brief4vscode_enabled" },
+    { "key": "ctrl+shift+right", "command": "cursorWordStartRightSelect", "when": "editorTextFocus" },
+
+    // SlickEdit "Backspace key" = rubout (export.xml line 253): Backspace at
+    // column 1 does nothing -- it never joins the current line with the
+    // previous one, unlike VS Code's default deleteLeft. Implemented by the
+    // local "Brief/SlickEdit Parity Helpers" extension (briefHelpers.rubout)
+    // since no built-in VS Code command/when-clause can express "stop at
+    // column 0". Left inactive during brief4vscode's own marking-mode
+    // Backspace handling (block/line delete) so that still works normally.
+    {
+        "key": "backspace",
+        "command": "briefHelpers.rubout",
+        "when": "editorTextFocus && !editorReadonly && !brief4vscode_marking_mode && !briefHelpers.columnMarking"
+    },
+
+    // SlickEdit 'pop_bookmark' (Ctrl+Comma, export.xml line 753): jumps back
+    // to where you were before the last symbol-navigation/search jump.
+    // brief4vscode has no equivalent command; closest built-in is VS Code's
+    // own back-navigation stack. Not identical semantics, but same intent.
+    // Ctrl+, is VS Code's default "Open Settings" -- reassigned below.
+    { "key": "ctrl+,", "command": "workbench.action.navigateBack", "when": "editorTextFocus" },
+    { "key": "ctrl+,", "command": "-workbench.action.openSettings" },
+
+    // SlickEdit 'A-A' -> WriteCommentBlock. Real port via the local helper
+    // extension (inline single-line boxed comment at the cursor's column).
+    // Takes over alt+a from brief4vscode's "noninclusive_marking_mode_toggle"
+    // -- that marking mode is no longer reachable by keyboard once this is
+    // active (alt+m/alt+l/alt+c still cover the other three marking modes).
+    {
+        "key": "alt+a",
+        "command": "briefHelpers.writeCommentBlock",
+        "when": "editorTextFocus && !editorReadonly"
+    },
+    {
+        "key": "alt+a",
+        "command": "-brief4vscode.noninclusive_marking_mode_toggle",
+        "when": "editorTextFocus && brief4vscode_enabled"
+    },
+
+    // SlickEdit 'A-S' -> WriteSectionSeparator. Real port (bold '=' boxed
+    // comment). Takes over alt+s from brief4vscode's Find remap -- Ctrl+F
+    // (SlickEdit's own i-search binding, already wired above) still opens
+    // Find, so this isn't a total loss of that function, just of the extra
+    // Alt+S shortcut for it.
+    {
+        "key": "alt+s",
+        "command": "briefHelpers.writeSectionSeparator",
+        "when": "editorTextFocus && !editorReadonly"
+    },
+    {
+        "key": "alt+s",
+        "command": "-actions.find",
+        "when": "editorTextFocus && brief4vscode_enabled"
+    },
+
+    // SlickEdit 'C-H' -> WriteFileHeader. Real port (standard header block
+    // at top of file, #pragma once for header files). Takes over ctrl+h from
+    // VS Code's default Replace -- still reachable by opening Find (Ctrl+F)
+    // and clicking its Replace toggle, or via the command palette.
+    {
+        "key": "ctrl+h",
+        "command": "briefHelpers.writeFileHeader",
+        "when": "editorTextFocus && !editorReadonly"
+    },
+    {
+        "key": "ctrl+h",
+        "command": "-editor.action.startFindReplaceAction"
+    },
+
+    // SlickEdit 'C-Z' -> ZapWhitespace. Real port of your macro (source:
+    // OneDrive/SlickEdit/jjk.e.1) -- deletes the run of spaces from the
+    // cursor to the next non-space character or end of line. The original
+    // hangs when invoked on a blank line (or anywhere the cursor is already
+    // at/past end of line) because its forward scan has no bound against
+    // the line length; this port adds that bound and no-ops in that case
+    // instead, per your instruction. Takes over ctrl+z from Undo --
+    // brief4vscode still covers Undo on alt+u and numpad '*'.
+    {
+        "key": "ctrl+z",
+        "command": "briefHelpers.zapWhitespace",
+        "when": "editorTextFocus && !editorReadonly"
+    },
+    {
+        "key": "ctrl+z",
+        "command": "-undo",
+        "when": "editorTextFocus && !editorReadonly"
+    },
+
+    // SlickEdit "Home key"/"End key" = brief-home/brief-end: 1st press ->
+    // line start/end, 2nd consecutive press -> window top/bottom, 3rd
+    // consecutive press -> file start/end, deterministic regardless of
+    // where the cursor started. brief4vscode's own home()/end() infer the
+    // tier by re-inspecting the live viewport on every keystroke, and their
+    // cursor-move reveal nudges the scroll each time, so the viewport drifts
+    // and the "which tier is this" check drifts with it -- reported
+    // symptom: 2nd/3rd presses scroll the buffer instead of jumping cleanly.
+    // Replaced with a real consecutive-keystroke state machine (advances
+    // only when the cursor is exactly where OUR previous press left it) that
+    // doesn't scroll at all for the window tier, since that target is
+    // computed from -- and therefore already inside -- the current visible
+    // range. Left active only outside marking mode; brief4vscode's own
+    // versions still run during line/stream/column marking, since they
+    // handle extending the selection and that logic wasn't reimplemented.
+    {
+        "key": "home",
+        "command": "-brief4vscode.home",
+        "when": "editorTextFocus && brief4vscode_enabled"
+    },
+    {
+        "key": "home",
+        "command": "brief4vscode.home",
+        "when": "editorTextFocus && brief4vscode_enabled && brief4vscode_marking_mode"
+    },
+    {
+        "key": "home",
+        "command": "briefHelpers.home",
+        "when": "editorTextFocus && brief4vscode_enabled && !brief4vscode_marking_mode && !briefHelpers.columnMarking"
+    },
+    {
+        "key": "end",
+        "command": "-brief4vscode.end",
+        "when": "editorTextFocus && brief4vscode_enabled"
+    },
+    {
+        "key": "end",
+        "command": "brief4vscode.end",
+        "when": "editorTextFocus && brief4vscode_enabled && brief4vscode_marking_mode"
+    },
+    {
+        "key": "end",
+        "command": "briefHelpers.end",
+        "when": "editorTextFocus && brief4vscode_enabled && !brief4vscode_marking_mode && !briefHelpers.columnMarking"
+    },
+
+    // Up/Down arrow, replaced entirely (not just patched): the zapWhitespace
+    // fix above needed a working goal-column, and VS Code's native Up/Down
+    // computes that from pixel x-coordinate, not character count. Confirmed
+    // via testing that a wide-rendering glyph (U+FFFD, present in ~67 lines
+    // of the file being edited) throws that pixel<->character conversion
+    // off by a character on lines with a different width profile -- and
+    // confirmed the file's own alignment is character-index-correct
+    // throughout (every row's second column starts at the identical
+    // character offset, glyph or not), so character-index tracking is the
+    // right model. briefHelpers.up/down never consult Monaco's native goal
+    // column at all; they track their own, as a plain character index,
+    // immune to rendering width. Guarded off whenever a suggestion/parameter
+    // -hint overlay is visible so autocomplete list navigation still works
+    // normally, and off during marking mode for the same reason as Home/End.
+    {
+        "key": "up",
+        "command": "briefHelpers.up",
+        "when": "editorTextFocus && brief4vscode_enabled && !brief4vscode_marking_mode && !briefHelpers.columnMarking && !suggestWidgetVisible && !parameterHintsVisible"
+    },
+    {
+        "key": "down",
+        "command": "briefHelpers.down",
+        "when": "editorTextFocus && brief4vscode_enabled && !brief4vscode_marking_mode && !briefHelpers.columnMarking && !suggestWidgetVisible && !parameterHintsVisible"
+    },
+
+    // Alt+L -> line marking mode toggle, wrapped so that toggling it off is a
+    // true no-op the way SlickEdit's is. brief4vscode has to park the caret at
+    // the start of the line AFTER the marked block (the only way to make VS
+    // Code paint a full line including its newline), and its exit path
+    // collapses the selection to selection.end -- so Alt+L Alt+L on line 25
+    // leaves the caret at the start of line 26 instead of back where it was,
+    // and Alt+L Up Alt+L leaves it at line 26 when the caret was visually on
+    // 24. briefHelpers.lineMarkingModeToggle delegates to brief4vscode's own
+    // toggle for all the actual marking-mode work, and only fixes the caret up
+    // afterwards -- see the long comment on it in extension.js for how it
+    // tells an entry from an exit without being able to read a context key.
+    // Unconditional (no marking-mode split): Alt+L during stream or column
+    // marking legitimately switches INTO line marking, and the wrapper handles
+    // that case as an entry.
+    {
+        "key": "alt+l",
+        "command": "-brief4vscode.line_marking_mode_toggle",
+        "when": "editorTextFocus && brief4vscode_enabled"
+    },
+    {
+        "key": "alt+l",
+        "command": "briefHelpers.lineMarkingModeToggle",
+        "when": "editorTextFocus && brief4vscode_enabled"
+    },
+
+    // -------------------------------------------------------------------
+    // Column marking, replaced wholesale (briefHelpers.column*).
+    //
+    // brief4vscode's column mode cannot be patched into correctness: it
+    // derives the block from the caret's PHYSICAL column, and VS Code has no
+    // virtual whitespace, so arrowing over a short or blank line clamps the
+    // caret and silently re-points the block -- on video 2026-08-19, marking
+    // "Calypso" then pressing Up over a blank line turned the block into the
+    // text to its LEFT, and cut duly deleted that. See "Column marking" in
+    // setting-up-vscode.md and the long comment in extension.js.
+    //
+    // Ours keeps the desired column in its own state, so vertical movement
+    // cannot change which columns are marked. The status bar reports the
+    // block as <COLUMN-MARKING-MODE RxC> and that is exactly what cut takes.
+    //
+    // Everything below is gated on briefHelpers.columnMarking, a context key
+    // this extension sets, so these bindings exist only while a block is
+    // live. The pre-existing Home/End/Up/Down/Backspace overrides further up
+    // carry `&& !briefHelpers.columnMarking` so they yield rather than
+    // race -- mutually exclusive when-clauses, not keybinding file order.
+    {
+        "key": "alt+c",
+        "command": "-brief4vscode.column_marking_mode_toggle",
+        "when": "editorTextFocus && brief4vscode_enabled"
+    },
+    {
+        "key": "alt+c",
+        "command": "briefHelpers.columnMarkingModeToggle",
+        "when": "editorTextFocus && brief4vscode_enabled"
+    },
+    {
+        "key": "up",
+        "command": "briefHelpers.columnUp",
+        "when": "editorTextFocus && briefHelpers.columnMarking"
+    },
+    {
+        "key": "down",
+        "command": "briefHelpers.columnDown",
+        "when": "editorTextFocus && briefHelpers.columnMarking"
+    },
+    {
+        "key": "left",
+        "command": "briefHelpers.columnLeft",
+        "when": "editorTextFocus && briefHelpers.columnMarking"
+    },
+    {
+        "key": "right",
+        "command": "briefHelpers.columnRight",
+        "when": "editorTextFocus && briefHelpers.columnMarking"
+    },
+    {
+        "key": "home",
+        "command": "briefHelpers.columnHome",
+        "when": "editorTextFocus && briefHelpers.columnMarking"
+    },
+    {
+        "key": "end",
+        "command": "briefHelpers.columnEnd",
+        "when": "editorTextFocus && briefHelpers.columnMarking"
+    },
+    {
+        "key": "pageup",
+        "command": "briefHelpers.columnPageUp",
+        "when": "editorTextFocus && briefHelpers.columnMarking"
+    },
+    {
+        "key": "pagedown",
+        "command": "briefHelpers.columnPageDown",
+        "when": "editorTextFocus && briefHelpers.columnMarking"
+    },
+    // Brief cut/copy keys. Paste is deliberately NOT overridden:
+    // briefHelpers.columnCut writes brief4vscode's own Column_mode_block_data
+    // JSON to the clipboard, so its Insert-key paste still recognises the
+    // block and inserts it as a rectangle.
+    {
+        "key": "numpad_subtract",
+        "command": "briefHelpers.columnCut",
+        "when": "editorTextFocus && !editorReadonly && briefHelpers.columnMarking"
+    },
+    {
+        "key": "numpad_add",
+        "command": "briefHelpers.columnCopy",
+        "when": "editorTextFocus && briefHelpers.columnMarking"
+    },
+    {
+        "key": "delete",
+        "command": "briefHelpers.columnDelete",
+        "when": "editorTextFocus && !editorReadonly && briefHelpers.columnMarking"
+    },
+    {
+        "key": "backspace",
+        "command": "briefHelpers.columnDelete",
+        "when": "editorTextFocus && !editorReadonly && briefHelpers.columnMarking"
+    },
+    {
+        "key": "escape",
+        "command": "briefHelpers.columnCancel",
+        "when": "editorTextFocus && briefHelpers.columnMarking"
+    },
+
+    // -------------------------------------------------------------------
+    // Left UNBOUND / commented out below -- no viable key or no real
+    // VS Code equivalent. See chat for the full explanation of each.
+    // -------------------------------------------------------------------
+
+    // SlickEdit 'F10' -> cmdline-toggle. F10 is VS Code's default "Debug: Step Over".
+    // { "key": "f10", "command": "workbench.action.quickOpen" },
+]

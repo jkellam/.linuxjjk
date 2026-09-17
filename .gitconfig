@@ -1,0 +1,88 @@
+##-------------------------------------------------------------------------
+## My standard, portable .gitconfig file.
+##
+## ~/.gitconfig should be a symlink to this file.
+##
+## Note also that scripts in ~/.linuxjjk/bin that start with "git-" will 
+## be automatically available as git subcommands.
+##-------------------------------------------------------------------------
+
+##-------------------------------------------------------------------------
+## Include the machine-local identity from ~/.gitid.
+## It should contain the following:
+##      [user]
+##          name = Jeff Kellam
+##          email = <an email address for this machine's account>
+##-------------------------------------------------------------------------
+[include]
+    path = ~/.gitid
+
+[core]
+	editor = /usr/bin/nano
+	autocrlf = input
+[merge]
+    tool = kdiff3
+    guitool = kdiff3
+    log = true
+[mergetool "meld"]
+    cmd = '~/AppData/Local/Programs/meld/meld' $LOCAL $MERGED $REMOTE --output=$MERGED
+[diff]
+    tool = meld
+    guitool = meld
+[difftool "meld"]
+	cmd = git-meld-wrapper.sh $LOCAL $REMOTE
+[alias]
+    db = "!f() { git difftool -d $(git merge-base origin/main HEAD); }; f"
+    dt = "!f() { MELD_DIFF_ARGS=\"$*\" git difftool -d \"$@\"; }; f"
+    dp = "!f() { MELD_DIFF_ARGS=\"$*\" git difftool -d HEAD~1 \"$@\"; }; f"
+    changes = "!f() { git difftool -d $1^! ; }; f"
+    mt = mergetool
+    lol = log --pretty=oneline --abbrev-commit --graph --decorate
+    low = log --pretty=format:'%C(bold red)%h%Creset -%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset'
+    sb = status -sb
+    rbi = rebase -i --autosquash
+    rbc = rebase --continue
+    wc = changes
+    graphviz = "!f() { echo 'digraph git {' ; git log --pretty='format:  %p -> { %h }' \"$@\" | sed 's/[0-9a-f][0-9a-f]*/\"&\"/g' ; echo '}'; }; f"
+    graphviz2 = "!f() { echo 'digraph git {' ; git log --pretty='format:  %P -> { %H}' \"$@\" | sed 's/[0-9a-f][0-9a-f]*/\"&\"/g' ; echo '}'; }; f"
+    s = status
+    top = "!f() { git rev-parse --show-toplevel | sed 's,/,\\\\,g' ; }; f"
+    test = "!f() { export ZZZ=`tput lines` ; echo Foo $ZZZ ; }; f"
+	why = log --no-walk
+[color "status"]
+    untracked = red bold
+    modified = red bold
+[color "branch"]
+    upstream = cyan
+[filter "lfs"]
+    process = git-lfs filter-process
+    required = true
+    clean = git-lfs clean -- %f
+    smudge = git-lfs smudge -- %f
+[color "decorate"]
+    branch = green bold
+    HEAD = green bold
+[color "branch"]
+    current = white bold
+    local = green bold
+    upstream = yellow bold
+    remote = red
+    plain = blue
+
+[winUpdater]
+    recentlySeenVersion = 2.23.0.windows.1
+[difftool]
+    prompt = false
+[credential]
+    helper = manager
+[push]
+	autoSetupRemote = true
+[mergetool "kdiff3"]
+	path = /usr/bin/kdiff3
+	cmd = kdiff3 --L1 Base --L2 \"Local (mine)\" --L3 \"Remote (theirs)\" -o \"$MERGED\" \"$BASE\" \"$LOCAL\" \"$REMOTE\"
+[credential "https://github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential

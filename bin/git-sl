@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""git sl -- the stack: local and origin/<user>/* branches since their base."""
+
+import os
+import sys
+
+##  No __pycache__ in bin/: it saves nothing measurable (the whole command runs
+##  in ~40 ms either way) and would show up forever as a difference when bin/ is
+##  diffed against the USB copies.  It has to be set here rather than inside
+##  jjk_gitlog, which cannot do it for itself -- the loader compiles and caches a
+##  module before running its body.
+sys.dont_write_bytecode = True
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+
+from jjk_gitlog import branch_names, git, screen_log, trunk_name
+
+USER = "jkellam"          # whose remote branches count as part of the stack
+
+
+def revs():
+    """Every local branch and his own remote branches, cut off below their
+    common base so the shared history stays off the screen."""
+    branches = branch_names("refs/heads/") + branch_names(
+        "refs/remotes/origin/%s/*" % USER,
+        "refs/remotes/origin/" + trunk_name())
+    if not branches:
+        return []
+
+    base = git("merge-base", "--octopus", *branches)
+    if not base:
+        return branches                # unrelated histories: show them all
+
+    ##  ^BASE^ keeps the base commit itself visible, the same anchor fsl uses.
+    if git("rev-parse", "--verify", "-q", base + "^") is None:
+        return branches + ["^" + base]
+    return branches + ["^" + base + "^"]
+
+
+sys.exit(screen_log(
+    name="sl",
+    blurb="the stack: local and origin/%s/* branches since their base" % USER,
+    extra_log_args=["--decorate-refs=refs/remotes/*/%s/*" % USER],
+    revs=revs,
+))

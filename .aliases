@@ -1,0 +1,199 @@
+is_on_current_desktop_cinnamon() {
+    #   is_on_current_desktop_cinnamon <canonical-executable> <status-when-unknown>
+    # Only the X11 session can be read; anything else is unknown.
+    local target=$1
+    local unknown=$2
+
+    local desktop
+    desktop=$(wmctrl -d 2>/dev/null | awk '$2 == "*" { print $1 }')
+    [ -n "$desktop" ] || return "$unknown"
+
+    # wmctrl -lpx columns: <id> <desktop> <pid> <WM_CLASS> <host> <title>.
+    # Sticky windows report desktop -1.
+    local pid exe
+    while read -r pid; do
+        [ "$pid" -gt 0 ] 2>/dev/null || continue
+        exe=$(ps -o args= -p "$pid" 2>/dev/null | awk 'NR == 1 { print $1 }')
+        [ -n "$exe" ] || continue
+        exe=$(realpath -e -- "$exe" 2>/dev/null) || continue
+        [ "$exe" = "$target" ] && return 1
+    done < <(wmctrl -lpx 2>/dev/null |
+                 awk -v d="$desktop" '$2 == d || $2 == "-1" { print $3 }')
+
+    return 0
+}
+
+
+is_on_current_desktop() {
+    # Is <executable> the process behind any window on the visible desktop?
+    #   is_on_current_desktop <executable> [status-when-unknown]
+    # 1 = yes, 0 = no, status-when-unknown (default 0) if it can't be told.
+    local target=$1
+    local unknown=${2:-0}
+
+    # Backends compare canonical paths.
+    target=$(realpath -e -- "$target" 2>/dev/null) || return "$unknown"
+
+    case ",${XDG_CURRENT_DESKTOP,,}," in
+        *cinnamon*)
+            is_on_current_desktop_cinnamon "$target" "$unknown"
+            ;;
+        *plasma*|*kde*)
+            # TODO: not yet implemented.
+            return "$unknown"
+            ;;
+        *)
+            return "$unknown"
+            ;;
+    esac
+}
+
+
+gitbranch() {
+    local branch_output
+    branch_output=$(git branch 2>/dev/null) || return 0
+
+    local the_branch
+    the_branch=$(printf '%s\n' "$branch_output" | grep -E '^\*.')
+
+    if [[ $(printf '%s\n' "$the_branch" | grep -cE '^\*.') -eq 1 ]]; then
+        the_branch="${the_branch#\*}"
+        the_branch="${the_branch#"${the_branch%%[![:space:]]*}"}"
+        the_branch="${the_branch%"${the_branch##*[![:space:]]}"}"
+        if [[ "$the_branch" == users/banshee/* ]]; then
+            echo "(~/${the_branch#users/banshee/})"
+        else
+            echo "($the_branch)"
+        fi
+    fi
+}
+
+
+hgbookmark() {
+    return 0
+}
+
+
+cgrep() {
+    if [[ $# -ne 1 ]]; then
+        echo Usage: cgrep \<pattern\> 1>&2
+    else
+        grep -r --include="*.h" --include="*.c" "$1" .
+    fi
+}
+
+
+hgrep() {
+    if [[ $# -ne 1 ]]; then
+        echo Usage: hgrep \<pattern\> 1>&2
+    else
+        grep -r --include="*.h" "$1" .
+    fi
+}
+
+
+cppgrep() {
+    if [[ $# -ne 1 ]]; then
+        echo Usage: cppgrep \<pattern\> 1>&2
+    else
+        grep -r --include="*.h" --include="*.hpp" --include="*.c" --include="*.cpp" --include="*.cxx" "$1" .
+    fi
+}
+
+
+hppgrep() {
+    if [[ $# -ne 1 ]]; then
+        echo Usage: hppgrep \<pattern\> 1>&2
+    else
+        grep -r --include="*.h" --include="*.hpp" "$1" .
+    fi
+}
+
+
+pygrep() {
+    if [[ $# -ne 1 ]]; then
+        echo Usage: hppgrep \<pattern\> 1>&2
+    else
+        grep -r --include="*.py" "$1" .
+    fi
+}
+
+
+agrep() {
+    if [[ $# -ne 1 ]]; then
+        echo Usage: agrep \<pattern\> 1>&2
+    else
+        grep -r --include="*" --include=".*" "$1" .
+    fi
+}
+
+
+ffind() {
+    find . -type f -name "$1" -print 2> /dev/null
+}
+
+
+detach() {
+    { "$@" & } > /dev/null 2>&1
+    disown &>/dev/null  # Prevent whine if job has already completed
+}
+
+
+isprog()
+{
+    if command -v "$1" &> /dev/null ; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+
+code() {
+    # When no VS Code window is on this desktop, open a new one.
+    if is_on_current_desktop /usr/share/code/code 1; then
+        detach /usr/bin/code -n "$@"
+    else
+        detach /usr/bin/code "$@"
+    fi
+}
+
+
+vs() {
+    detach /usr/local/bin/vs "$@"
+}
+
+
+change_input() {
+    local target_model="DELL U4025QW"
+    if ! ddcutil --model "$target_model" setvcp 60 "$1" >/dev/null 2>&1; then
+        echo -e "\033[31mNo $target_model found\033[0m" >&2
+        return 1
+    fi
+}
+
+
+work() {
+    change_input 0x19
+}
+
+
+home() {
+    change_input 0x0f
+}
+
+
+start() {
+    local viewer
+    for candidate in dolphin nemo nautilus; do
+        if command -v "$candidate" &> /dev/null; then
+            viewer="$candidate"
+            break
+        fi
+    done
+    if [[ -z "$viewer" ]]; then
+        echo -e "\033[31mNo file manager found (dolphin, nemo, nautilus)\033[0m" >&2
+        return 1
+    fi
+    detach "$viewer" "$@"
+}

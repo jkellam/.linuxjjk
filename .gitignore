@@ -1,0 +1,5 @@
+##  Claude Code's per-machine permission choices -- local, not portable.
+.claude/settings.local.json
+
+##  Python bytecode from importing jjk_gitlog.py.
+__pycache__/

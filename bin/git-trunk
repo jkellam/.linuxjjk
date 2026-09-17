@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""git trunk -- the first-parent log: trunk only, no side branches.
+
+Rendering, wrapping and the row budget all live in jjk_gitlog; this file is only
+what makes this view different.  See that module's docstring for the why.
+"""
+
+import os
+import sys
+
+##  No __pycache__ in bin/: it saves nothing measurable (the whole command runs
+##  in ~40 ms either way) and would show up forever as a difference when bin/ is
+##  diffed against the USB copies.  It has to be set here rather than inside
+##  jjk_gitlog, which cannot do it for itself -- the loader compiles and caches a
+##  module before running its body.
+sys.dont_write_bytecode = True
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+
+from jjk_gitlog import screen_log
+
+##  No revs callable: --first-parent from HEAD is what `git log` does by default
+##  once you ask for first parents only, so there is nothing to compute.
+sys.exit(screen_log(
+    name="trunk",
+    blurb="the first-parent log -- trunk only, no side branches",
+    extra_log_args=["--first-parent"],
+))

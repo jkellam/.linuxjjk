@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""git tree -- every local branch, against the remote trunk."""
+
+import os
+import sys
+
+##  No __pycache__ in bin/: it saves nothing measurable (the whole command runs
+##  in ~40 ms either way) and would show up forever as a difference when bin/ is
+##  diffed against the USB copies.  It has to be set here rather than inside
+##  jjk_gitlog, which cannot do it for itself -- the loader compiles and caches a
+##  module before running its body.
+sys.dont_write_bytecode = True
+
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+
+from jjk_gitlog import git, screen_log, trunk_name
+
+
+def revs():
+    """Every local branch, plus the remote trunk to hang them off.
+
+    Which trunk that is comes from trunk_name(), so this works in an
+    origin/master repo as well as an origin/main one.  The old alias named
+    origin/main unconditionally and died outright anywhere without it -- hence
+    also the guard on it resolving at all.
+    """
+    wanted = ["--branches=*"]
+    remote_trunk = "origin/" + trunk_name()
+    if git("rev-parse", "--verify", "-q", remote_trunk) is not None:
+        wanted.append(remote_trunk)
+    return wanted
+
+
+sys.exit(screen_log(
+    name="tree",
+    ##  Names the trunk this repo actually has, so -h is accurate in both kinds.
+    blurb="every local branch, against origin/" + trunk_name(),
+    revs=revs,
+))

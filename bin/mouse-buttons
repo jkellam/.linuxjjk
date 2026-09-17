@@ -1,0 +1,269 @@
+#!/usr/bin/env python3
+"""Print Solaar's name for each button on a Logitech mouse as it is pressed.
+
+Solaar only learns about a button press if the control is *diverted* -- an
+undiverted button just sends an ordinary HID mouse event that never reaches
+HID++.  So this temporarily diverts every divertable control on the device,
+decodes the resulting REPROG_CONTROLS_V4 notifications into Solaar's own
+control names, and undoes the diversion on the way out.
+
+The diversion is temporary: it is not written to the device's saved config,
+and it is restored when this exits (including on Ctrl-C).
+
+Quit the Solaar tray app first.  Two processes issuing HID++ requests on the
+same receiver will interleave their replies and confuse each other.
+
+Works against Solaar 1.1.20 and the older 1.1.11; see the compatibility
+shims below for what moved between them.
+
+Usage:
+    mouse-buttons                   # first device with divertable controls
+    mouse-buttons "MX Master"       # pick a device by name substring
+    mouse-buttons --list            # list the controls and exit
+    mouse-buttons --seconds 10      # stop after 10s, e.g. for a smoke test
+"""
+
+import argparse
+import logging
+import os
+import struct
+import sys
+import time
+
+SOLAAR_LIB = '/usr/share/solaar/lib'
+if os.path.isdir(SOLAAR_LIB) and SOLAAR_LIB not in sys.path:
+    sys.path.insert(0, SOLAAR_LIB)
+
+try:
+    from logitech_receiver import base, special_keys
+except ImportError as exc:
+    sys.exit('mouse-buttons: cannot import the Solaar libraries (%s).\n'
+             'Is solaar installed, and is %s the right path?' % (exc, SOLAAR_LIB))
+
+# --- compatibility shims -----------------------------------------------------
+#
+# Solaar reorganised these between 1.1.11 (Ubuntu noble) and 1.1.20 (PPA).
+# Everything else this script touches -- base.read, base.make_notification,
+# special_keys.CONTROL, key.set_diverted -- survived unchanged.
+
+# The feature id enum: hidpp20.FEATURE became hidpp20_constants.SupportedFeature.
+try:
+    from logitech_receiver.hidpp20_constants import SupportedFeature as _FEATURES
+except ImportError:
+    from logitech_receiver.hidpp20 import FEATURE as _FEATURES
+REPROG_CONTROLS_V4 = _FEATURES.REPROG_CONTROLS_V4
+
+# NoReceiver moved out of base into its own exceptions module.
+try:
+    from logitech_receiver.exceptions import NoReceiver
+except ImportError:
+    from logitech_receiver.base import NoReceiver
+
+# key.flags became a KeyFlag IntFlag instead of a list of strings.
+try:
+    from logitech_receiver.hidpp20 import KeyFlag as _KeyFlag
+
+    def is_divertable(key):
+        return _KeyFlag.DIVERTABLE in key.flags
+except ImportError:
+
+    def is_divertable(key):
+        return 'divertable' in key.flags
+
+# The Receiver.open / Device.open classmethods became module-level factories.
+try:
+    from logitech_receiver import device as _device_mod
+    from logitech_receiver import receiver as _receiver_mod
+
+    def open_hid_thing(info):
+        if info.isDevice:
+            return _device_mod.create_device(base, info)
+        return _receiver_mod.create_receiver(base, info)
+except (ImportError, AttributeError):
+    from logitech_receiver import Device as _Device
+    from logitech_receiver import Receiver as _Receiver
+
+    def open_hid_thing(info):
+        return _Device.open(info) if info.isDevice else _Receiver.open(info)
+
+# --- end compatibility shims -------------------------------------------------
+
+# REPROG_CONTROLS_V4 notification addresses.
+ADDR_CONTROLS_HELD = 0x00  # payload is the set of diverted controls now down
+ADDR_RAW_XY = 0x10         # emitted by raw-XY controls while held; ignored here
+
+READ_TIMEOUT = 0.5         # seconds; keeps Ctrl-C responsive
+
+
+def quiet_hidapi():
+    """Silence hidapi's per-device warning about the missing hid_parser module.
+
+    Without python3-hid-parser installed, Solaar's udev backend falls back to
+    matching on vendor/product id and warns once per hidraw node. The fallback
+    works fine and the noise buries our output.
+    """
+    logging.getLogger('hidapi').setLevel(logging.ERROR)
+    logging.getLogger('hidapi.udev').setLevel(logging.ERROR)
+
+
+def open_everything():
+    """Yield (owner, device) pairs.
+
+    `owner` is whatever holds the hidraw handle we read notifications from --
+    the receiver for a paired device, or the device itself when it is
+    connected directly over USB or Bluetooth.
+    """
+    for info in base.receivers_and_devices():
+        try:
+            thing = open_hid_thing(info)
+        except Exception as exc:
+            print('mouse-buttons: skipping %s (%s)' % (info.path, exc), file=sys.stderr)
+            continue
+        if thing is None:
+            continue
+        if thing.isDevice:
+            yield thing, thing
+        else:
+            for paired in thing:
+                yield thing, paired
+
+
+def divertable(device):
+    """The controls on `device` that can be diverted, in device order."""
+    return [k for k in (device.keys or ()) if is_divertable(k)]
+
+
+def name_of(cid, names):
+    """Solaar's name for a control id, falling back to its global table."""
+    return names.get(cid) or str(special_keys.CONTROL[cid])
+
+
+def describe(device):
+    """One line per control, mirroring what `solaar show` reports."""
+    keys = device.keys or ()
+    if not keys:
+        print('  (device reports no reprogrammable controls)')
+        return
+    for k in keys:
+        print('  0x%04X  %-24s %s' % (int(k.key), str(k.key),
+                                      'divertable' if is_divertable(k) else '-'))
+
+
+def solaar_is_running():
+    """True if another Solaar process looks to be holding the device."""
+    me = os.getpid()
+    for entry in os.listdir('/proc'):
+        if not entry.isdigit() or int(entry) == me:
+            continue
+        try:
+            with open('/proc/%s/cmdline' % entry, 'rb') as f:
+                argv = f.read().split(b'\0')
+        except OSError:
+            continue
+        if any(os.path.basename(a.decode('utf-8', 'replace')) == 'solaar' for a in argv if a):
+            return True
+    return False
+
+
+def listen(owner, device, seconds=None):
+    index = device.features[REPROG_CONTROLS_V4]
+    if not index:
+        sys.exit('mouse-buttons: %s does not support REPROG_CONTROLS_V4' % device.name)
+
+    names = {int(k.key): str(k.key) for k in (device.keys or ())}
+    targets = divertable(device)
+    if not targets:
+        sys.exit('mouse-buttons: %s has no divertable controls' % device.name)
+
+    print('Listening on %s. Press buttons; Ctrl-C to stop and restore.' % device.name)
+    print('Not divertable (will never appear): %s' %
+          (', '.join(str(k.key) for k in (device.keys or ()) if not is_divertable(k)) or 'none'))
+    print()
+
+    diverted = []
+    held = set()
+    deadline = None if seconds is None else time.monotonic() + seconds
+    try:
+        for k in targets:
+            k.set_diverted(True)
+            diverted.append(k)
+
+        while deadline is None or time.monotonic() < deadline:
+            try:
+                packet = base.read(owner.handle, READ_TIMEOUT)
+            except NoReceiver:
+                print('mouse-buttons: the receiver went away', file=sys.stderr)
+                break
+            if not packet:
+                continue
+
+            report_id, devnumber, payload = packet
+            if not owner.isDevice and devnumber != device.number:
+                continue
+            n = base.make_notification(report_id, devnumber, payload)
+            if n is None or n.sub_id != index or n.address != ADDR_CONTROLS_HELD:
+                continue
+
+            # The payload is the set of diverted controls currently down, up to
+            # four of them, zero-padded. An all-zero payload means "none held".
+            cids = struct.unpack('!HHHH', n.data[:8].ljust(8, b'\0'))
+            now = {c for c in cids if c}
+            for cid in sorted(now - held):
+                print('%s pressed   (cid 0x%04X)' % (name_of(cid, names), cid), flush=True)
+            for cid in sorted(held - now):
+                print('%s released  (cid 0x%04X)' % (name_of(cid, names), cid), flush=True)
+            held = now
+    finally:
+        for k in diverted:
+            try:
+                k.set_diverted(False)
+            except Exception as exc:
+                print('mouse-buttons: could not restore %s (%s)' % (k.key, exc), file=sys.stderr)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument('name', nargs='?', help='device name substring, e.g. "MX Master"')
+    ap.add_argument('--list', action='store_true', help='list controls and exit')
+    ap.add_argument('--seconds', type=float, help='stop after this many seconds')
+    ap.add_argument('--verbose', action='store_true',
+                    help="don't suppress hidapi's report-descriptor warnings")
+    args = ap.parse_args()
+
+    if not args.verbose:
+        quiet_hidapi()
+
+    found = list(open_everything())
+    if not found:
+        sys.exit('mouse-buttons: no Logitech devices found. If solaar itself works,\n'
+                 'check that you can read /dev/hidraw* (see 60-solaar.rules).')
+
+    if args.name:
+        found = [(o, d) for o, d in found if args.name.lower() in (d.name or '').lower()]
+        if not found:
+            sys.exit('mouse-buttons: no device matching %r' % args.name)
+
+    if args.list:
+        for _, dev in found:
+            print('%s [%s]' % (dev.name, getattr(dev, 'id', None) or dev.number))
+            describe(dev)
+            print()
+        return
+
+    owner, device = next(((o, d) for o, d in found if divertable(d)), (None, None))
+    if device is None:
+        sys.exit('mouse-buttons: found %s, but nothing with divertable controls' %
+                 ', '.join(d.name for _, d in found))
+
+    if solaar_is_running():
+        print('warning: solaar appears to be running; quit it if events look erratic\n',
+              file=sys.stderr)
+
+    listen(owner, device, args.seconds)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        print()

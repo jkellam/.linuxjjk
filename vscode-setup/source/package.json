@@ -1,0 +1,81 @@
+{
+    "name": "brief-slickedit-helpers",
+    "displayName": "Brief/SlickEdit Parity Helpers",
+    "description": "Small helper commands closing remaining gaps between SlickEdit's Brief emulation and the brief4vscode extension.",
+    "version": "0.0.4",
+    "publisher": "local",
+    "engines": {
+        "vscode": "^1.86.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "extensionDependencies": [
+        "rkdawenterprises.brief4vscode"
+    ],
+    "main": "./extension.js",
+    "activationEvents": [
+        "onCommand:briefHelpers.rubout",
+        "onCommand:briefHelpers.zapWhitespace",
+        "onCommand:briefHelpers.home",
+        "onCommand:briefHelpers.end",
+        "onCommand:briefHelpers.up",
+        "onCommand:briefHelpers.down",
+        "onCommand:briefHelpers.writeCommentBlock",
+        "onCommand:briefHelpers.writeSectionSeparator",
+        "onCommand:briefHelpers.writeFileHeader",
+        "onCommand:briefHelpers.writeFunctionBlock",
+        "onCommand:briefHelpers.lineMarkingModeToggle",
+        "onCommand:briefHelpers.columnMarkingModeToggle",
+        "onCommand:briefHelpers.columnCancel",
+        "onCommand:briefHelpers.columnUp",
+        "onCommand:briefHelpers.columnDown",
+        "onCommand:briefHelpers.columnLeft",
+        "onCommand:briefHelpers.columnRight",
+        "onCommand:briefHelpers.columnHome",
+        "onCommand:briefHelpers.columnEnd",
+        "onCommand:briefHelpers.columnPageUp",
+        "onCommand:briefHelpers.columnPageDown",
+        "onCommand:briefHelpers.columnCut",
+        "onCommand:briefHelpers.columnCopy",
+        "onCommand:briefHelpers.columnDelete"
+    ],
+    "contributes": {
+        "commands": [
+            { "command": "briefHelpers.rubout", "title": "Brief Helpers: Backspace (rubout - stop at column 1, never join previous line)" },
+            { "command": "briefHelpers.zapWhitespace", "title": "Brief Helpers: Zap Whitespace (delete whitespace run at cursor; no-op at end of line, fixing the SlickEdit hang)" },
+            { "command": "briefHelpers.home", "title": "Brief Helpers: Home (deterministic line/window/file tiers, no scroll drift)" },
+            { "command": "briefHelpers.end", "title": "Brief Helpers: End (deterministic line/window/file tiers, no scroll drift)" },
+            { "command": "briefHelpers.up", "title": "Brief Helpers: Up (character-index goal column, immune to glyph-width rendering drift)" },
+            { "command": "briefHelpers.down", "title": "Brief Helpers: Down (character-index goal column, immune to glyph-width rendering drift)" },
+            { "command": "briefHelpers.writeCommentBlock", "title": "Brief Helpers: Write Comment Block" },
+            { "command": "briefHelpers.writeSectionSeparator", "title": "Brief Helpers: Write Section Separator" },
+            { "command": "briefHelpers.writeFileHeader", "title": "Brief Helpers: Write File Header" },
+            { "command": "briefHelpers.writeFunctionBlock", "title": "Brief Helpers: Write Function Block" },
+            { "command": "briefHelpers.lineMarkingModeToggle", "title": "Brief Helpers: Line Marking Mode Toggle (leaves the caret where it started, as SlickEdit does)" },
+            { "command": "briefHelpers.columnMarkingModeToggle", "title": "Brief Helpers: Column Marking Mode Toggle (own implementation: the block is what gets cut)" },
+            { "command": "briefHelpers.columnCancel", "title": "Brief Helpers: Column Marking: Cancel Block" },
+            { "command": "briefHelpers.columnUp", "title": "Brief Helpers: Column Marking: Extend Block Up (keeps the marked columns over short/blank lines)" },
+            { "command": "briefHelpers.columnDown", "title": "Brief Helpers: Column Marking: Extend Block Down (keeps the marked columns over short/blank lines)" },
+            { "command": "briefHelpers.columnLeft", "title": "Brief Helpers: Column Marking: Extend Block Left" },
+            { "command": "briefHelpers.columnRight", "title": "Brief Helpers: Column Marking: Extend Block Right" },
+            { "command": "briefHelpers.columnHome", "title": "Brief Helpers: Column Marking: Extend Block to Column 0" },
+            { "command": "briefHelpers.columnEnd", "title": "Brief Helpers: Column Marking: Extend Block to End of Line" },
+            { "command": "briefHelpers.columnPageUp", "title": "Brief Helpers: Column Marking: Extend Block Up One Page" },
+            { "command": "briefHelpers.columnPageDown", "title": "Brief Helpers: Column Marking: Extend Block Down One Page" },
+            { "command": "briefHelpers.columnCut", "title": "Brief Helpers: Column Marking: Cut Block" },
+            { "command": "briefHelpers.columnCopy", "title": "Brief Helpers: Column Marking: Copy Block" },
+            { "command": "briefHelpers.columnDelete", "title": "Brief Helpers: Column Marking: Delete Block (no copy)" }
+        ],
+        "configuration": {
+            "title": "Brief/SlickEdit Parity Helpers",
+            "properties": {
+                "briefHelpers.reverseSingleLineMarkSelection": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Alt+L line marking: while the marked block is a single line, reverse the selection so the caret shows on the marked line (at column 0) rather than at the start of the line after it. Same highlighted range either way. Set false for brief4vscode's original forward selection."
+                }
+            }
+        }
+    }
+}
