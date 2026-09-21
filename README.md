@@ -8,9 +8,9 @@ The guiding constraint is that it never breaks what is already there. `init` doe
 delete a file it did not create; anything unexpected is reported and left alone.
 
 ```bash
-git clone <this> ~/.linuxjjk      # or just copy the directory
+git clone https://github.com/jkellam/.linuxjjk.git ~/.linuxjjk   # or just copy the directory
 ~/.linuxjjk/init
-exec bash -l                      # pick up the new shell config
+exec bash -l                                                     # pick up the new shell config
 ```
 
 `init` is safe to re-run as often as you like — it is a health check as much as an installer.
