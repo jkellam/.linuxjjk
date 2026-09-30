@@ -83,11 +83,29 @@ cgrep() {
 }
 
 
+cgrepi() {
+    if [[ $# -ne 1 ]]; then
+        echo Usage: cgrepi \<pattern\> 1>&2
+    else
+        grep -r --ignore-case --include="*.h" --include="*.c" "$1" .
+    fi
+}
+
+
 hgrep() {
     if [[ $# -ne 1 ]]; then
         echo Usage: hgrep \<pattern\> 1>&2
     else
         grep -r --include="*.h" "$1" .
+    fi
+}
+
+
+hgrepi() {
+    if [[ $# -ne 1 ]]; then
+        echo Usage: hgrepi \<pattern\> 1>&2
+    else
+        grep -r --ignore-case --include="*.h" "$1" .
     fi
 }
 
@@ -101,6 +119,15 @@ cppgrep() {
 }
 
 
+cppgrepi() {
+    if [[ $# -ne 1 ]]; then
+        echo Usage: cppgrepi \<pattern\> 1>&2
+    else
+        grep -r --ignore-case --include="*.h" --include="*.hpp" --include="*.c" --include="*.cpp" --include="*.cxx" "$1" .
+    fi
+}
+
+
 hppgrep() {
     if [[ $# -ne 1 ]]; then
         echo Usage: hppgrep \<pattern\> 1>&2
@@ -110,11 +137,29 @@ hppgrep() {
 }
 
 
+hppgrepi() {
+    if [[ $# -ne 1 ]]; then
+        echo Usage: hppgrepi \<pattern\> 1>&2
+    else
+        grep -r --ignore-case --include="*.h" --include="*.hpp" "$1" .
+    fi
+}
+
+
 pygrep() {
     if [[ $# -ne 1 ]]; then
-        echo Usage: hppgrep \<pattern\> 1>&2
+        echo Usage: pygrep \<pattern\> 1>&2
     else
         grep -r --include="*.py" "$1" .
+    fi
+}
+
+
+pygrepi() {
+    if [[ $# -ne 1 ]]; then
+        echo Usage: pygrepi \<pattern\> 1>&2
+    else
+        grep -r --ignore-case --include="*.py" "$1" .
     fi
 }
 
@@ -124,6 +169,15 @@ agrep() {
         echo Usage: agrep \<pattern\> 1>&2
     else
         grep -r --include="*" --include=".*" "$1" .
+    fi
+}
+
+
+agrepi() {
+    if [[ $# -ne 1 ]]; then
+        echo Usage: agrepi \<pattern\> 1>&2
+    else
+        grep -r --ignore-case --include="*" --include=".*" "$1" .
     fi
 }
 
