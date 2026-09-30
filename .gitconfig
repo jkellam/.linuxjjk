@@ -32,7 +32,7 @@
 [difftool "meld"]
 	cmd = git-meld-wrapper.sh $LOCAL $REMOTE
 [alias]
-    db = "!f() { git difftool -d $(git merge-base origin/main HEAD); }; f"
+    db = "!f() { git difftool -d $(git merge-base origin/HEAD HEAD); }; f"
     dt = "!f() { MELD_DIFF_ARGS=\"$*\" git difftool -d \"$@\"; }; f"
     dp = "!f() { MELD_DIFF_ARGS=\"$*\" git difftool -d HEAD~1 \"$@\"; }; f"
     changes = "!f() { git difftool -d $1^! ; }; f"
