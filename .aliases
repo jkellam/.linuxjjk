@@ -1,3 +1,21 @@
+pid_runs_executable() {
+    #   pid_runs_executable <pid> <canonical-executable>
+    # 1 = <pid> is running it, 0 = not, or no such process.
+    local pid=$1
+    local target=$2
+
+    [ "$pid" -gt 0 ] 2>/dev/null || return 0
+
+    local exe
+    exe=$(ps -o args= -p "$pid" 2>/dev/null | awk 'NR == 1 { print $1 }')
+    [ -n "$exe" ] || return 0
+    exe=$(realpath -e -- "$exe" 2>/dev/null) || return 0
+    [ "$exe" = "$target" ] && return 1
+
+    return 0
+}
+
+
 is_on_current_desktop_cinnamon() {
     #   is_on_current_desktop_cinnamon <canonical-executable> <status-when-unknown>
     # Only the X11 session can be read; anything else is unknown.
@@ -10,15 +28,43 @@ is_on_current_desktop_cinnamon() {
 
     # wmctrl -lpx columns: <id> <desktop> <pid> <WM_CLASS> <host> <title>.
     # Sticky windows report desktop -1.
-    local pid exe
+    local pid
     while read -r pid; do
-        [ "$pid" -gt 0 ] 2>/dev/null || continue
-        exe=$(ps -o args= -p "$pid" 2>/dev/null | awk 'NR == 1 { print $1 }')
-        [ -n "$exe" ] || continue
-        exe=$(realpath -e -- "$exe" 2>/dev/null) || continue
-        [ "$exe" = "$target" ] && return 1
+        pid_runs_executable "$pid" "$target" || return 1
     done < <(wmctrl -lpx 2>/dev/null |
                  awk -v d="$desktop" '$2 == d || $2 == "-1" { print $3 }')
+
+    return 0
+}
+
+
+is_on_current_desktop_plasma() {
+    #   is_on_current_desktop_plasma <canonical-executable> <status-when-unknown>
+    # Plasma 6 only.  Asks KWin through kdotool 0.3.0+ (for kwinscript), so
+    # native Wayland windows count as well as X11 ones.  A window counts when
+    # it is on both the current desktop and the current activity.
+    local target=$1
+    local unknown=$2
+
+    command -v kdotool >/dev/null 2>&1 || return "$unknown"
+
+    # An empty desktops or activities list means the window is on all of them.
+    local script='
+const desktop = workspace.currentDesktop.id;
+const activity = workspace.currentActivity;
+for (const w of workspace.windowList()) {
+    if (w.desktops.length && !w.desktops.some(d => d.id === desktop)) continue;
+    if (w.activities.length && !w.activities.includes(activity)) continue;
+    output_result(w.pid);
+}'
+
+    local pids
+    pids=$(timeout 5 kdotool kwinscript --inline "$script" 2>/dev/null) || return "$unknown"
+
+    local pid
+    while read -r pid; do
+        pid_runs_executable "$pid" "$target" || return 1
+    done <<< "$pids"
 
     return 0
 }
@@ -39,8 +85,7 @@ is_on_current_desktop() {
             is_on_current_desktop_cinnamon "$target" "$unknown"
             ;;
         *plasma*|*kde*)
-            # TODO: not yet implemented.
-            return "$unknown"
+            is_on_current_desktop_plasma "$target" "$unknown"
             ;;
         *)
             return "$unknown"

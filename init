@@ -1146,6 +1146,65 @@ check_cinnamon_keybindings() {
 
 
 ##============================================================================
+##  kdotool, which the Plasma half of is_on_current_desktop in .aliases needs.
+##
+##  Without it `code` cannot see which desktop VS Code is on and always reuses
+##  an existing window.  0.3.0 is the floor: that release added kwinscript,
+##  which the test is built on, and dropped Plasma 5.
+##============================================================================
+KDOTOOL_MIN_VERSION='0.3.0'
+
+##----------------------------------------------------------------------------
+##  Is this a Plasma machine?
+##
+##  plasmashell, not just $XDG_CURRENT_DESKTOP, for the same reason
+##  cinnamon_is_available uses schemas: that variable is empty from a TTY and
+##  over ssh, even on the Plasma box.
+##----------------------------------------------------------------------------
+plasma_is_available() {
+    [[ ${XDG_CURRENT_DESKTOP,,} == *plasma* || ${XDG_CURRENT_DESKTOP,,} == *kde* ]] ||
+        command -v plasmashell >/dev/null 2>&1
+}
+
+check_plasma_kdotool() {
+    local version
+
+    ##------------------------------------------------------------------------
+    ##  Not Plasma: nothing needs kdotool, so say nothing -- same reasoning as
+    ##  a machine without VS Code.
+    ##------------------------------------------------------------------------
+    plasma_is_available || return 0
+
+    ##------------------------------------------------------------------------
+    ##  Yellow, not red: nothing is broken, `code` just loses its
+    ##  new-window-per-desktop behavior, and installing it is not init's call.
+    ##------------------------------------------------------------------------
+    if ! command -v kdotool >/dev/null 2>&1; then
+        complain warn "kdotool is not installed, so \`code\` cannot tell which desktop"
+        cont "VS Code is on and will always reuse an existing window."
+        cont "Install $KDOTOOL_MIN_VERSION or later: cargo install kdotool"
+        return 1
+    fi
+
+    version=$(kdotool --version 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)+' | head -n 1)
+
+    if [[ -z $version ]]; then
+        complain warn "could not read kdotool's version; \`code\` needs $KDOTOOL_MIN_VERSION or later."
+        return 1
+    fi
+
+    if [[ $(printf '%s\n' "$KDOTOOL_MIN_VERSION" "$version" | sort -V | head -n 1) != "$KDOTOOL_MIN_VERSION" ]]; then
+        complain warn "kdotool $version is too old; \`code\` needs $KDOTOOL_MIN_VERSION or later for kwinscript."
+        cont "Upgrade: cargo install kdotool"
+        return 1
+    fi
+
+    green "kdotool $version installed"
+    return 0
+}
+
+
+##============================================================================
 ##  Main
 ##============================================================================
 info "Initializing from $(tildify "$SCRIPT_DIR")"
@@ -1171,6 +1230,7 @@ check_bashrc_hook
 check_vscode_setup
 check_bin
 check_cinnamon_keybindings
+check_plasma_kdotool
 
 ##----------------------------------------------------------------------------
 ##  Groups last: they are the only checks that need a password, so everything

@@ -31,7 +31,8 @@ always a screen of green.
 | 5 | VS Code setup | Installs/verifies the Brief–SlickEdit parity setup in `vscode-setup/` (settings, keybindings, fonts, helper extension). |
 | 6 | `bin/` | Restores the execute bit, which a round trip through a vfat USB stick silently drops. |
 | 7 | Cinnamon shortcuts | Installs the monitor-input keybinding. Says so and moves on where Cinnamon is not running. |
-| 8 | Groups | Offers to add you to `dialout` (serial/USB-serial) and `i2c` (`ddcutil`). Last, because it is the only check that wants a sudo password. |
+| 8 | `kdotool` | On Plasma, checks that `kdotool` 0.3.0+ is installed for the current-desktop test behind `code`. Silent elsewhere. |
+| 9 | Groups | Offers to add you to `dialout` (serial/USB-serial) and `i2c` (`ddcutil`). Last, because it is the only check that wants a sudo password. |
 
 Output colours mean one specific thing:
 
@@ -106,7 +107,7 @@ consistent and fit on one screen.
 ## Monitor input switching
 
 The `work` / `home` functions drive a DELL U4025QW over DDC/CI with `ddcutil`, which needs the
-`i2c` group (check 8). `bin/go_home_helper.sh` is the same thing reachable from a desktop
+`i2c` group (check 9). `bin/go_home_helper.sh` is the same thing reachable from a desktop
 keybinding: it sources `bashrc_jjk` itself, because a keybinding runs a non-interactive shell where
 `~/.bashrc` returns before it ever reaches the hook. `init` binds it to
 <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>NumPad&nbsp;7</kbd> under Cinnamon, registering both `KP_7` and
@@ -130,8 +131,9 @@ notices when the shipped payload moves on. See `vscode-setup/setting-up-vscode.m
 ## Requirements
 
 `bash` and `git` are the only hard ones. Everything else is optional and skipped silently when
-absent: `ddcutil` (monitor switching), `wmctrl` (the current-desktop test behind `code`), `gsettings`
-(Cinnamon keybindings), the `code` CLI (VS Code setup), `python3` (the git log views).
+absent: `ddcutil` (monitor switching), `wmctrl` / `kdotool` (the current-desktop test behind `code`
+on Cinnamon / Plasma 6), `gsettings` (Cinnamon keybindings), the `code` CLI (VS Code setup),
+`python3` (the git log views).
 
 ## Gotchas
 
